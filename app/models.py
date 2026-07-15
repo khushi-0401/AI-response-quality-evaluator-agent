@@ -6,7 +6,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, Float
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -27,7 +27,17 @@ class EvaluationSubmission(Base):
     reference_answer = Column(Text, nullable=True)
     source_document = Column(Text, nullable=True)
     source_document_name = Column(String(255), nullable=True)
-    mode = Column(String(50), default="single")  # single or batch
+    mode = Column(String(50), default="single")  # single or batch or grounded
     batch_id = Column(String(36), nullable=True)
     status = Column(SQLEnum(SubmissionStatus), default=SubmissionStatus.PENDING)
+    
+    # Additional fields for evaluation results (to be used in future modules)
+    evaluation_score = Column(Float, nullable=True)
+    evaluation_feedback = Column(Text, nullable=True)
+    hallucination_detected = Column(Text, nullable=True)  # JSON string for hallucination details
+    
     created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    def __repr__(self):
+        return f"<EvaluationSubmission {self.id} - {self.status}>"
