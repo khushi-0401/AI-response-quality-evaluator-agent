@@ -7,18 +7,42 @@ import uuid
 from app.database import engine, get_db
 from app import models, schemas
 from app.rag_retriever import RAGRetriever
-from app.agents import RelevanceJudge, AccuracyJudge, HallucinationDetector, ValidationAgent
+
+# ==============================================================================
+# AGENT IMPORTS
+# ==============================================================================
+
+# Set this to False to use rule-based agents instead of LLM
+USE_LLM = True
+
+if USE_LLM:
+    from app.agents.relevance_agent import RelevanceJudge
+    from app.agents.accuracy_agent import AccuracyJudge
+    from app.agents.hallucination_agent import HallucinationDetector
+    from app.agents.validation_agent import ValidationAgent
+    AGENT_TYPE = "LLM-Powered"
+else:
+    from app.agents.relevance_agent import RelevanceJudge
+    from app.agents.accuracy_agent import AccuracyJudge
+    from app.agents.hallucination_agent import HallucinationDetector
+    from app.agents.validation_agent import ValidationAgent
+    AGENT_TYPE = "Rule-Based"
+
+# ==============================================================================
+# SETUP
+# ==============================================================================
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# This line creates the actual database file and its tables inside your computer on startup
+# Create database tables
 models.Base.metadata.create_all(bind=engine)
 
+# Initialize FastAPI
 app = FastAPI(
     title="DELL-Sandbox :AI Response Quality Evaluator Agent",
-    description="My custom module for capturing, validating, and auditing AI-generated text data. Built on FastAPI",
+    description=f"Evaluation system with {AGENT_TYPE} agents",
     version="0.1.0-alpha"
 )
 
@@ -31,6 +55,7 @@ accuracy_judge = AccuracyJudge()
 hallucination_detector = HallucinationDetector()
 validation_agent = ValidationAgent()
 
+logger.info(f"✅ System initialized with {AGENT_TYPE} agents")
 
 # ==============================================================================
 # INFRASTRUCTURE ENDPOINTS
@@ -41,9 +66,9 @@ async def health_check():
     return {
         "status": "healthy",
         "module": "Evaluation Input Module",
-        "rag_ready": rag_retriever.is_ready()
+        "rag_ready": rag_retriever.is_ready(),
+        "agent_type": AGENT_TYPE
     }
-
 
 # ==============================================================================
 # MODULE 1: EVALUATION INPUT ENDPOINTS
@@ -60,7 +85,6 @@ async def submit_single_evaluation(
     db: Session = Depends(get_db)
 ) -> schemas.SubmissionAcknowledgement:
     
-    # Create the database object map from the clean incoming request data
     new_submission = models.EvaluationSubmission(
         question=payload.question,
         ai_response=payload.ai_response,
@@ -70,7 +94,6 @@ async def submit_single_evaluation(
         mode="single"
     )
     
-    # Insert the entry into your local SQLite ledger file
     try:
         db.add(new_submission)
         db.commit()
@@ -82,7 +105,6 @@ async def submit_single_evaluation(
             detail=f"Database insertion failed: {str(e)}"
         )
     
-    # Return acknowledgment containing the automatic tracking unique ID token
     return schemas.SubmissionAcknowledgement(
         submission_id=new_submission.id,
         status=new_submission.status,
@@ -100,10 +122,8 @@ async def get_evaluation_status(
     db: Session = Depends(get_db)
 ) -> schemas.SubmissionDetailsResponse:
     
-    # Lookup the record using its unique string ID
     record = db.query(models.EvaluationSubmission).filter(models.EvaluationSubmission.id == submission_id).first()
     
-    # Return an error error message if the ID doesn't match anything in our records
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -125,7 +145,6 @@ async def submit_for_evaluation(payload: schemas.EvaluationRequest):
         }
     }
 
-
 # ==============================================================================
 # MODULE 1: RAG ENDPOINTS
 # ==============================================================================
@@ -140,20 +159,15 @@ async def evaluate_with_grounding(
     payload: schemas.SingleSubmissionCreate,
     db: Session = Depends(get_db)
 ) -> schemas.SubmissionAcknowledgement:
-    """
-    Evaluate AI response with RAG grounding using the knowledge base
-    """
-    # Check if RAG is ready
+    
     if not rag_retriever.is_ready():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Knowledge base not initialized. Please run build_knowledge_base.py first."
         )
     
-    # Retrieve relevant context from knowledge base
     context = rag_retriever.retrieve_context(payload.question, k=3)
     
-    # Create submission with grounding context
     new_submission = models.EvaluationSubmission(
         question=payload.question,
         ai_response=payload.ai_response,
@@ -186,7 +200,6 @@ async def evaluate_with_grounding(
     tags=["RAG"]
 )
 async def get_rag_status():
-    """Check the status of the RAG knowledge base"""
     is_ready = rag_retriever.is_ready()
     return {
         "rag_ready": is_ready,
@@ -200,12 +213,10 @@ async def get_rag_status():
     tags=["RAG"]
 )
 async def rebuild_knowledge_base():
-    """Rebuild the knowledge base from scratch (for development)"""
     import subprocess
     import sys
     
     try:
-        # Run the build script
         result = subprocess.run(
             [sys.executable, "build_knowledge_base.py"],
             capture_output=True,
@@ -219,7 +230,6 @@ async def rebuild_knowledge_base():
                 detail=f"Build failed: {result.stderr}"
             )
         
-        # Re-initialize the retriever
         global rag_retriever
         rag_retriever = RAGRetriever()
         
@@ -234,7 +244,6 @@ async def rebuild_knowledge_base():
             detail=f"Failed to rebuild knowledge base: {str(e)}"
         )
 
-
 # ==============================================================================
 # MODULE 2: AGENT EVALUATION ENDPOINTS
 # ==============================================================================
@@ -247,10 +256,6 @@ async def rebuild_knowledge_base():
 async def evaluate_relevance(
     payload: schemas.AgentEvaluationRequest
 ) -> schemas.RelevanceResponse:
-    """
-    Evaluate relevance of AI response to the question.
-    Returns relevance score with reasoning.
-    """
     try:
         result = relevance_judge.evaluate(
             question=payload.question,
@@ -268,8 +273,10 @@ async def evaluate_relevance(
             reasoning=result["reasoning"],
             key_points_covered=result["key_points_covered"],
             missing_points=result["missing_points"],
-            term_coverage=result["term_coverage"]
+            term_coverage=result.get("term_coverage", 0.0)
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in relevance evaluation: {e}")
         raise HTTPException(
@@ -286,12 +293,7 @@ async def evaluate_relevance(
 async def evaluate_accuracy(
     payload: schemas.AgentEvaluationRequest
 ) -> schemas.AccuracyResponse:
-    """
-    Evaluate accuracy of AI response against reference or RAG context.
-    Returns accuracy score with evidence.
-    """
     try:
-        # If source_context not provided and use_rag is True, retrieve from RAG
         source_context = payload.source_context
         if not source_context and payload.use_rag:
             if rag_retriever.is_ready():
@@ -342,12 +344,7 @@ async def evaluate_accuracy(
 async def detect_hallucination(
     payload: schemas.AgentEvaluationRequest
 ) -> schemas.HallucinationResponse:
-    """
-    Detect hallucinations in AI response by cross-referencing with RAG context.
-    Returns hallucinated statements with severity levels.
-    """
     try:
-        # If source_context not provided and use_rag is True, retrieve from RAG
         source_context = payload.source_context
         if not source_context and payload.use_rag:
             if rag_retriever.is_ready():
@@ -406,17 +403,12 @@ async def evaluate_all_agents(
     payload: schemas.AgentEvaluationRequest,
     db: Session = Depends(get_db)
 ) -> schemas.AgentEvaluationResponse:
-    """
-    Run all three agents (Relevance, Accuracy, Hallucination) and store results.
-    """
     try:
-        # Get RAG context if needed
         source_context = payload.source_context
         if not source_context and payload.use_rag:
             if rag_retriever.is_ready():
                 source_context = rag_retriever.retrieve_context(payload.question, k=5)
         
-        # Run all agents
         relevance_result = relevance_judge.evaluate(
             question=payload.question,
             ai_response=payload.ai_response
@@ -435,7 +427,6 @@ async def evaluate_all_agents(
             source_context=source_context or ""
         )
         
-        # Store submission with agent results
         new_submission = models.EvaluationSubmission(
             question=payload.question,
             ai_response=payload.ai_response,
@@ -444,7 +435,7 @@ async def evaluate_all_agents(
             source_document_name="RAG_Context_for_Agents",
             mode="agent_evaluation",
             evaluation_score=accuracy_result.get("accuracy_score", 0),
-            evaluation_feedback=relevance_result.get("reasoning", "") + " | " + hallucination_result.get("summary", "")
+            evaluation_feedback=f"Relevance: {relevance_result.get('reasoning', 'N/A')} | Hallucination: {hallucination_result.get('summary', 'N/A')}"
         )
         
         db.add(new_submission)
@@ -460,7 +451,7 @@ async def evaluate_all_agents(
                 reasoning=relevance_result["reasoning"],
                 key_points_covered=relevance_result["key_points_covered"],
                 missing_points=relevance_result["missing_points"],
-                term_coverage=relevance_result["term_coverage"]
+                term_coverage=relevance_result.get("term_coverage", 0.0)
             ),
             accuracy=schemas.AccuracyResponse(
                 accuracy_score=accuracy_result["accuracy_score"],
@@ -498,10 +489,6 @@ async def evaluate_all_agents(
 async def validate_agents(
     payload: schemas.ValidationRequest
 ):
-    """
-    Validate all agents using a test dataset.
-    Returns validation summary and detailed results.
-    """
     try:
         result = validation_agent.evaluate(
             test_dataset=payload.test_dataset
@@ -524,21 +511,18 @@ async def validate_agents(
         )
 
 
-# ==============================================================================
-# HEALTH CHECK ENDPOINTS
-# ==============================================================================
-
 @app.get(
     "/api/agents/status",
     tags=["Agents"]
 )
 async def get_agents_status():
-    """Check the status of all agents"""
     return {
         "agents_ready": True,
+        "agent_type": AGENT_TYPE,
         "relevance_agent": "ready",
         "accuracy_agent": "ready",
         "hallucination_agent": "ready",
         "validation_agent": "ready",
-        "rag_available": rag_retriever.is_ready()
+        "rag_available": rag_retriever.is_ready(),
+        "llm_available": True
     }

@@ -1,0 +1,5 @@
+echo ".venv/" >> .gitignore
+echo "__pycache__/" >> .gitignore
+echo "chroma_db/" >> .gitignore
+echo "data/" >> .gitignore
+echo ".env" >> .gitignore

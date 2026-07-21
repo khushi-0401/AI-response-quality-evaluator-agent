@@ -1,10 +1,10 @@
 # ==============================================================================
-# VALIDATION AGENT
-# Validates individual agent scoring consistency and reasoning quality
+# VALIDATION AGENT - LLM POWERED
+# Validates LLM-powered agents
 # ==============================================================================
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from .base_agent import BaseAgent
 from .relevance_agent import RelevanceJudge
 from .accuracy_agent import AccuracyJudge
@@ -14,12 +14,7 @@ logger = logging.getLogger(__name__)
 
 class ValidationAgent(BaseAgent):
     """
-    Validation Agent - Tests and validates the other 3 agents.
-    
-    Validates:
-    - Scoring consistency (same answer gets same score)
-    - Reasoning quality (explanations make sense)
-    - Performance across varied question types
+    Validation Agent - Tests and validates the LLM-powered agents.
     """
     
     def __init__(self):
@@ -29,16 +24,7 @@ class ValidationAgent(BaseAgent):
         self.hallucination_detector = HallucinationDetector()
     
     def evaluate(self, test_dataset: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Validate all agents against a test dataset.
-        
-        Args:
-            test_dataset: List of test cases with question, ai_response, 
-                         reference_answer, source_context
-            
-        Returns:
-            Dict with validation summary and detailed results
-        """
+        """Validate all agents against a test dataset."""
         if not test_dataset:
             return {
                 "error": "Test dataset is required",
@@ -110,7 +96,6 @@ class ValidationAgent(BaseAgent):
                           accuracy_scores: List[float],
                           hallucination_results: List[bool]) -> Dict[str, Any]:
         """Calculate validation summary statistics."""
-        
         if not results:
             return {}
         
@@ -156,9 +141,6 @@ class ValidationAgent(BaseAgent):
         if avg == 0:
             return 1.0
         
-        # Calculate average deviation from mean
         deviations = [abs(s - avg) / avg for s in scores]
         avg_deviation = sum(deviations) / len(deviations)
-        
-        # Convert to consistency score (1 - avg_deviation)
         return max(0.0, 1.0 - avg_deviation)
