@@ -4,7 +4,7 @@
 # ==============================================================================
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from .base_agent import BaseAgent
 from app.llm_integration import LLMIntegration
 
@@ -66,18 +66,57 @@ class HallucinationDetector(BaseAgent):
         try:
             result = self.llm.detect_hallucination(question, ai_response, source_context)
             
+            # Ensure hallucinated_statements are dictionaries with 'statement' and 'explanation' keys
             hallucinated = result.get("hallucinated_statements", [])
             supported = result.get("supported_statements", [])
-            total = len(hallucinated) + len(supported)
+            
+            # Convert strings to dictionaries if needed
+            hallucinated_statements = []
+            for item in hallucinated:
+                if isinstance(item, str):
+                    hallucinated_statements.append({
+                        "statement": item,
+                        "explanation": "Unsupported claim detected"
+                    })
+                elif isinstance(item, dict):
+                    hallucinated_statements.append({
+                        "statement": item.get("statement", str(item)),
+                        "explanation": item.get("explanation", "No explanation provided")
+                    })
+                else:
+                    hallucinated_statements.append({
+                        "statement": str(item),
+                        "explanation": "Unsupported claim detected"
+                    })
+            
+            supported_statements = []
+            for item in supported:
+                if isinstance(item, str):
+                    supported_statements.append({
+                        "statement": item,
+                        "explanation": "Supported by source context"
+                    })
+                elif isinstance(item, dict):
+                    supported_statements.append({
+                        "statement": item.get("statement", str(item)),
+                        "explanation": item.get("explanation", "Supported by source context")
+                    })
+                else:
+                    supported_statements.append({
+                        "statement": str(item),
+                        "explanation": "Supported by source context"
+                    })
+            
+            total = len(hallucinated_statements) + len(supported_statements)
             
             return {
                 "hallucination_detected": result.get("hallucination_detected", False),
                 "hallucination_score": result.get("hallucination_score", 5) / 10,
-                "hallucinated_statements": hallucinated,
-                "supported_statements": supported,
+                "hallucinated_statements": hallucinated_statements,
+                "supported_statements": supported_statements,
                 "total_claims": total,
-                "hallucinated_count": len(hallucinated),
-                "supported_count": len(supported),
+                "hallucinated_count": len(hallucinated_statements),
+                "supported_count": len(supported_statements),
                 "summary": result.get("summary", "No summary provided"),
                 "llm_used": True
             }

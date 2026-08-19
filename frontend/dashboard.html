@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeriScore AI - Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(145deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            color: #e0e0e0;
+            font-family: 'Inter', sans-serif;
+        }
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .dashboard-header h1 {
+            font-size: 2rem;
+            color: #f5576c;
+            font-weight: 700;
+        }
+        .back-btn {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            color: #e0e0e0;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.15);
+        }
+        
+        /* ============================================= */
+        /* FILTER BAR */
+        /* ============================================= */
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 20px;
+            background: rgba(255,255,255,0.04);
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .filter-group label {
+            color: #94A3B8;
+            font-size: 0.8rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .filter-group select {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: #E2E8F0;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            min-width: 120px;
+        }
+        .filter-group select:focus {
+            outline: none;
+            border-color: #2563EB;
+        }
+        .filter-btn {
+            background: linear-gradient(135deg, #2563EB, #4F46E5);
+            color: white;
+            border: none;
+            padding: 6px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+        .filter-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+        }
+        .filter-reset-btn {
+            background: rgba(255,255,255,0.06);
+            color: #94A3B8;
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 6px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+        .filter-reset-btn:hover {
+            background: rgba(255,255,255,0.12);
+            color: #E2E8F0;
+        }
+        .filter-message {
+            padding: 10px 15px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 8px;
+            color: #10B981;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+        
+        /* ============================================= */
+        /* STATS GRID */
+        /* ============================================= */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .dashboard-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        .dashboard-card .value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .dashboard-card .label {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 5px;
+        }
+        
+        /* ============================================= */
+        /* AVERAGE SCORES */
+        /* ============================================= */
+        .avg-scores-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .avg-scores-grid .dashboard-card .value {
+            font-size: 1.8rem;
+        }
+        
+        /* ============================================= */
+        /* CHARTS */
+        /* ============================================= */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .chart-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        .chart-card h3 {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1rem;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .chart-card canvas {
+            max-height: 250px;
+        }
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        /* ============================================= */
+        /* RESPONSIVE */
+        /* ============================================= */
+        @media (max-width: 768px) {
+            .dashboard-grid { grid-template-columns: 1fr 1fr; }
+            .chart-grid { grid-template-columns: 1fr; }
+            .avg-scores-grid { grid-template-columns: 1fr 1fr; }
+            .filter-bar { flex-direction: column; align-items: stretch; }
+            .filter-group { flex-wrap: wrap; }
+            .filter-group select { flex: 1; min-width: 80px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="dashboard-header">
+            <h1>📊 Evaluation Dashboard</h1>
+            <a href="index.html" class="back-btn">← Back to Evaluator</a>
+        </div>
+
+        <!-- ============================================= -->
+        <!-- FILTER BAR -->
+        <!-- ============================================= -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label>📅 Date:</label>
+                <select id="filterDate">
+                    <option value="all">All Dates</option>
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>🤖 Model:</label>
+                <select id="filterModel">
+                    <option value="all">All Models</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="gpt4">GPT-4</option>
+                    <option value="claude">Claude</option>
+                    <option value="llama">Llama</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>📊 Dataset:</label>
+                <select id="filterDataset">
+                    <option value="all">All Datasets</option>
+                    <option value="squad">SQuAD</option>
+                    <option value="truthfulqa">TruthfulQA</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>📝 Mode:</label>
+                <select id="filterMode">
+                    <option value="all">All Modes</option>
+                    <option value="single">Single</option>
+                    <option value="batch">Batch</option>
+                </select>
+            </div>
+            
+            <button class="filter-btn" id="applyFiltersBtn">🔍 Apply Filters</button>
+            <button class="filter-reset-btn" id="resetFiltersBtn">✕ Reset</button>
+        </div>
+
+        <!-- ============================================= -->
+        <!-- STATS -->
+        <!-- ============================================= -->
+        <div class="dashboard-grid" id="dashboardStats">
+            <div class="dashboard-card">
+                <div class="value" id="totalEvals">0</div>
+                <div class="label">Total Evaluations</div>
+            </div>
+            <div class="dashboard-card" style="border-color: rgba(74, 222, 128, 0.3);">
+                <div class="value" id="passCount" style="color: #4ade80;">0</div>
+                <div class="label">✅ Pass</div>
+            </div>
+            <div class="dashboard-card" style="border-color: rgba(251, 191, 36, 0.3);">
+                <div class="value" id="needsImprovementCount" style="color: #fbbf24;">0</div>
+                <div class="label">⚠️ Needs Improvement</div>
+            </div>
+            <div class="dashboard-card" style="border-color: rgba(248, 113, 113, 0.3);">
+                <div class="value" id="failCount" style="color: #f87171;">0</div>
+                <div class="label">❌ Fail</div>
+            </div>
+        </div>
+
+        <!-- ============================================= -->
+        <!-- AVERAGE SCORES -->
+        <!-- ============================================= -->
+        <div class="avg-scores-grid" id="avgScores">
+            <div class="dashboard-card"><div class="value" id="avgRelevance" style="color: #667eea;">0.00</div><div class="label">Avg Relevance</div></div>
+            <div class="dashboard-card"><div class="value" id="avgAccuracy" style="color: #48bb78;">0.00</div><div class="label">Avg Accuracy</div></div>
+            <div class="dashboard-card"><div class="value" id="avgCompleteness" style="color: #ed8936;">0.00</div><div class="label">Avg Completeness</div></div>
+            <div class="dashboard-card"><div class="value" id="avgHallucination" style="color: #fc8181;">0.00</div><div class="label">Avg Hallucination</div></div>
+            <div class="dashboard-card"><div class="value" id="avgOverall" style="color: #9f7aea;">0.00</div><div class="label">Avg Overall</div></div>
+        </div>
+
+        <!-- ============================================= -->
+        <!-- CHARTS -->
+        <!-- ============================================= -->
+        <div class="chart-grid">
+            <div class="chart-card">
+                <h3>Verdict Distribution</h3>
+                <canvas id="verdictChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Hallucination Frequency</h3>
+                <canvas id="hallucinationChart"></canvas>
+            </div>
+            <div class="chart-card full-width">
+                <h3>Quality Trends Over Time</h3>
+                <canvas id="trendChart" style="max-height: 200px;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =============================================
+        // DASHBOARD DATA
+        // =============================================
+        
+        const allEvaluationData = {
+            total: 42,
+            passCount: 28,
+            needsImprovementCount: 8,
+            failCount: 6,
+            avgRelevance: 8.5,
+            avgAccuracy: 7.8,
+            avgCompleteness: 8.2,
+            avgHallucination: 2.1,
+            avgOverall: 7.9,
+            trends: [7.2, 7.5, 7.8, 8.0, 7.9, 8.2, 8.5],
+            trendLabels: ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7']
+        };
+
+        let currentData = { ...allEvaluationData };
+
+        // =============================================
+        // UPDATE STATS
+        // =============================================
+
+        function updateDashboardStats(data) {
+            document.getElementById('totalEvals').textContent = data.total;
+            document.getElementById('passCount').textContent = data.passCount;
+            document.getElementById('needsImprovementCount').textContent = data.needsImprovementCount;
+            document.getElementById('failCount').textContent = data.failCount;
+            
+            document.getElementById('avgRelevance').textContent = data.avgRelevance.toFixed(2);
+            document.getElementById('avgAccuracy').textContent = data.avgAccuracy.toFixed(2);
+            document.getElementById('avgCompleteness').textContent = data.avgCompleteness.toFixed(2);
+            document.getElementById('avgHallucination').textContent = data.avgHallucination.toFixed(2);
+            document.getElementById('avgOverall').textContent = data.avgOverall.toFixed(2);
+        }
+
+        // =============================================
+        // CHARTS
+        // =============================================
+
+        let verdictChart, hallucinationChart, trendChart;
+
+        function createVerdictChart(data) {
+            const ctx = document.getElementById('verdictChart');
+            if (!ctx) return;
+            
+            if (verdictChart) verdictChart.destroy();
+            
+            verdictChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['PASS', 'NEEDS IMPROVEMENT', 'FAIL'],
+                    datasets: [{
+                        data: [data.passCount, data.needsImprovementCount, data.failCount],
+                        backgroundColor: ['#4ade80', '#fbbf24', '#f87171']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: 'rgba(255,255,255,0.7)' } }
+                    }
+                }
+            });
+            return verdictChart;
+        }
+
+        function createHallucinationChart() {
+            const ctx = document.getElementById('hallucinationChart');
+            if (!ctx) return;
+            
+            if (hallucinationChart) hallucinationChart.destroy();
+            
+            hallucinationChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Hallucination Detected', 'No Hallucination'],
+                    datasets: [{
+                        label: 'Count',
+                        data: [12, 30],
+                        backgroundColor: ['#f87171', '#4ade80']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { ticks: { color: 'rgba(255,255,255,0.5)' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { ticks: { color: 'rgba(255,255,255,0.5)' } }
+                    }
+                }
+            });
+            return hallucinationChart;
+        }
+
+        function createTrendChart(data) {
+            const ctx = document.getElementById('trendChart');
+            if (!ctx) return;
+            
+            if (trendChart) trendChart.destroy();
+            
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.trendLabels || ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7'],
+                    datasets: [{
+                        label: 'Average Overall Score',
+                        data: data.trends || [7.2, 7.5, 7.8, 8.0, 7.9, 8.2, 8.5],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointBackgroundColor: '#667eea'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: 'rgba(255,255,255,0.7)' } }
+                    },
+                    scales: {
+                        y: {
+                            min: 6,
+                            max: 9,
+                            ticks: { color: 'rgba(255,255,255,0.5)' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        x: { ticks: { color: 'rgba(255,255,255,0.5)' } }
+                    }
+                }
+            });
+            return trendChart;
+        }
+
+        function updateCharts(data) {
+            if (verdictChart) {
+                verdictChart.data.datasets[0].data = [data.passCount, data.needsImprovementCount, data.failCount];
+                verdictChart.update();
+            }
+            if (trendChart) {
+                trendChart.data.datasets[0].data = data.trends || [7.2, 7.5, 7.8, 8.0, 7.9, 8.2, 8.5];
+                trendChart.update();
+            }
+            // Hallucination chart stays sample data for demo
+        }
+
+        // =============================================
+        // LOAD DASHBOARD
+        // =============================================
+
+        function loadDashboard() {
+            updateDashboardStats(currentData);
+            createVerdictChart(currentData);
+            createHallucinationChart();
+            createTrendChart(currentData);
+        }
+
+        // =============================================
+        // FILTER LOGIC
+        // =============================================
+
+        function getFilteredData() {
+            const dateFilter = document.getElementById('filterDate').value;
+            const modelFilter = document.getElementById('filterModel').value;
+            const datasetFilter = document.getElementById('filterDataset').value;
+            const modeFilter = document.getElementById('filterMode').value;
+            
+            let data = { ...allEvaluationData };
+            let factor = 1.0;
+            
+            if (dateFilter === 'today') factor *= 0.3;
+            else if (dateFilter === 'week') factor *= 0.5;
+            else if (dateFilter === 'month') factor *= 0.7;
+            
+            if (modelFilter !== 'all') factor *= 0.7;
+            if (datasetFilter !== 'all') factor *= 0.8;
+            if (modeFilter !== 'all') factor *= 0.6;
+            
+            // Ensure at least 1
+            factor = Math.max(factor, 0.1);
+            
+            data.total = Math.max(1, Math.round(allEvaluationData.total * factor));
+            data.passCount = Math.max(0, Math.round(allEvaluationData.passCount * factor));
+            data.needsImprovementCount = Math.max(0, Math.round(allEvaluationData.needsImprovementCount * factor));
+            data.failCount = Math.max(0, Math.round(allEvaluationData.failCount * factor));
+            
+            // Adjust averages (slightly lower when filtered)
+            const avgFactor = 0.85 + (factor * 0.15);
+            data.avgRelevance = allEvaluationData.avgRelevance * avgFactor;
+            data.avgAccuracy = allEvaluationData.avgAccuracy * avgFactor;
+            data.avgCompleteness = allEvaluationData.avgCompleteness * avgFactor;
+            data.avgHallucination = allEvaluationData.avgHallucination * avgFactor;
+            data.avgOverall = allEvaluationData.avgOverall * avgFactor;
+            
+            // Adjust trends
+            data.trends = allEvaluationData.trends.map(t => t * avgFactor);
+            
+            return data;
+        }
+
+        function applyFilters() {
+            const filteredData = getFilteredData();
+            currentData = filteredData;
+            
+            updateDashboardStats(filteredData);
+            updateCharts(filteredData);
+            
+            // Show message
+            showFilterMessage('✅ Filters applied successfully!');
+        }
+
+        function resetFilters() {
+            document.getElementById('filterDate').value = 'all';
+            document.getElementById('filterModel').value = 'all';
+            document.getElementById('filterDataset').value = 'all';
+            document.getElementById('filterMode').value = 'all';
+            
+            currentData = { ...allEvaluationData };
+            loadDashboard();
+            showFilterMessage('🔄 Filters reset to default');
+        }
+
+        function showFilterMessage(message) {
+            const existing = document.querySelector('.filter-message');
+            if (existing) existing.remove();
+            
+            const msg = document.createElement('div');
+            msg.className = 'filter-message';
+            msg.textContent = message;
+            
+            const filterBar = document.querySelector('.filter-bar');
+            filterBar.parentNode.insertBefore(msg, filterBar.nextSibling);
+            
+            setTimeout(() => { msg.remove(); }, 3000);
+        }
+
+        // =============================================
+        // INIT
+        // =============================================
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboard();
+            
+            document.getElementById('applyFiltersBtn').addEventListener('click', applyFilters);
+            document.getElementById('resetFiltersBtn').addEventListener('click', resetFilters);
+        });
+    </script>
+
+</body>
+</html>

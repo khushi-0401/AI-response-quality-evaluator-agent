@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import logging
@@ -19,12 +20,16 @@ if USE_LLM:
     from app.agents.relevance_agent import RelevanceJudge
     from app.agents.accuracy_agent import AccuracyJudge
     from app.agents.hallucination_agent import HallucinationDetector
+    from app.agents.completeness_agent import CompletenessJudge
+    from app.agents.verdict_agent import VerdictAgent
     from app.agents.validation_agent import ValidationAgent
     AGENT_TYPE = "LLM-Powered"
 else:
     from app.agents.relevance_agent import RelevanceJudge
     from app.agents.accuracy_agent import AccuracyJudge
     from app.agents.hallucination_agent import HallucinationDetector
+    from app.agents.completeness_agent import CompletenessJudge
+    from app.agents.verdict_agent import VerdictAgent
     from app.agents.validation_agent import ValidationAgent
     AGENT_TYPE = "Rule-Based"
 
@@ -41,21 +46,34 @@ models.Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI
 app = FastAPI(
-    title="DELL-Sandbox :AI Response Quality Evaluator Agent",
-    description=f"Evaluation system with {AGENT_TYPE} agents",
+    title="VeriScore AI - Response Quality Evaluator",
+    description=f"AI-powered response evaluation with {AGENT_TYPE} agents. Modules 1, 2, and 3 complete.",
     version="0.1.0-alpha"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Initialize RAG retriever
 rag_retriever = RAGRetriever()
 
-# Initialize Agents
+# Initialize All 6 Agents
 relevance_judge = RelevanceJudge()
 accuracy_judge = AccuracyJudge()
 hallucination_detector = HallucinationDetector()
+completeness_judge = CompletenessJudge()
+verdict_agent = VerdictAgent()
 validation_agent = ValidationAgent()
 
 logger.info(f"✅ System initialized with {AGENT_TYPE} agents")
+logger.info("✅ Agents: Relevance, Accuracy, Hallucination, Completeness, Verdict, Validation")
+
 
 # ==============================================================================
 # INFRASTRUCTURE ENDPOINTS
@@ -65,10 +83,12 @@ logger.info(f"✅ System initialized with {AGENT_TYPE} agents")
 async def health_check():
     return {
         "status": "healthy",
-        "module": "Evaluation Input Module",
+        "module": "VeriScore AI - Modules 1, 2, 3",
         "rag_ready": rag_retriever.is_ready(),
-        "agent_type": AGENT_TYPE
+        "agent_type": AGENT_TYPE,
+        "agents": ["Relevance", "Accuracy", "Hallucination", "Completeness", "Verdict", "Validation"]
     }
+
 
 # ==============================================================================
 # MODULE 1: EVALUATION INPUT ENDPOINTS
@@ -144,6 +164,7 @@ async def submit_for_evaluation(payload: schemas.EvaluationRequest):
             "has_reference": payload.reference_answer is not None
         }
     }
+
 
 # ==============================================================================
 # MODULE 1: RAG ENDPOINTS
@@ -243,6 +264,7 @@ async def rebuild_knowledge_base():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to rebuild knowledge base: {str(e)}"
         )
+
 
 # ==============================================================================
 # MODULE 2: AGENT EVALUATION ENDPOINTS
@@ -393,22 +415,62 @@ async def detect_hallucination(
         )
 
 
+# ==============================================================================
+# MODULE 3: COMPLETENESS & VERDICT ENDPOINTS
+# ==============================================================================
+
 @app.post(
-    "/api/agents/evaluate-all",
-    response_model=schemas.AgentEvaluationResponse,
-    status_code=status.HTTP_201_CREATED,
+    "/api/agents/completeness",
+    response_model=schemas.CompletenessResponse,
     tags=["Agents"]
 )
-async def evaluate_all_agents(
-    payload: schemas.AgentEvaluationRequest,
-    db: Session = Depends(get_db)
-) -> schemas.AgentEvaluationResponse:
+async def evaluate_completeness(
+    payload: schemas.AgentEvaluationRequest
+) -> schemas.CompletenessResponse:
     try:
+        result = completeness_judge.evaluate(
+            question=payload.question,
+            ai_response=payload.ai_response
+        )
+        
+        if "error" in result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result["error"]
+            )
+        
+        return schemas.CompletenessResponse(
+            completeness_score=result["completeness_score"],
+            reasoning=result["reasoning"],
+            covered_aspects=result["covered_aspects"],
+            missing_aspects=result["missing_aspects"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in completeness evaluation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Completeness evaluation failed: {str(e)}"
+        )
+
+
+@app.post(
+    "/api/agents/verdict",
+    response_model=schemas.VerdictResponse,
+    tags=["Agents"]
+)
+async def get_verdict(
+    payload: schemas.AgentEvaluationRequest
+) -> schemas.VerdictResponse:
+    try:
+        # Get source context
         source_context = payload.source_context
         if not source_context and payload.use_rag:
             if rag_retriever.is_ready():
-                source_context = rag_retriever.retrieve_context(payload.question, k=5)
+                source_context = rag_retriever.retrieve_context(payload.question, k=3)
         
+        # Run all agents to get scores
         relevance_result = relevance_judge.evaluate(
             question=payload.question,
             ai_response=payload.ai_response
@@ -421,12 +483,120 @@ async def evaluate_all_agents(
             source_context=source_context
         )
         
+        completeness_result = completeness_judge.evaluate(
+            question=payload.question,
+            ai_response=payload.ai_response
+        )
+        
         hallucination_result = hallucination_detector.evaluate(
             question=payload.question,
             ai_response=payload.ai_response,
             source_context=source_context or ""
         )
         
+        # Prepare scores and reasonings
+        scores = {
+            "relevance_score": relevance_result.get("relevance_score", 0),
+            "accuracy_score": accuracy_result.get("accuracy_score", 0),
+            "completeness_score": completeness_result.get("completeness_score", 0),
+            "hallucination_score": hallucination_result.get("hallucination_score", 0)
+        }
+        
+        reasonings = {
+            "relevance": relevance_result.get("reasoning", ""),
+            "accuracy": accuracy_result.get("evidence", ""),
+            "completeness": completeness_result.get("reasoning", ""),
+            "hallucination": hallucination_result.get("summary", "")
+        }
+        
+        verdict_result = verdict_agent.evaluate(scores, reasonings)
+        
+        if "error" in verdict_result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=verdict_result["error"]
+            )
+        
+        return schemas.VerdictResponse(
+            overall_score=verdict_result["overall_score"],
+            verdict=verdict_result["verdict"],
+            verdict_emoji=verdict_result["verdict_emoji"],
+            dimension_breakdown=verdict_result["dimension_breakdown"],
+            consolidated_reasoning=verdict_result["consolidated_reasoning"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in verdict: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Verdict failed: {str(e)}"
+        )
+
+
+# ==============================================================================
+# MODULE 2 & 3: EVALUATE ALL AGENTS
+# ==============================================================================
+
+@app.post(
+    "/api/agents/evaluate-all",
+    response_model=schemas.AgentEvaluationResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Agents"]
+)
+async def evaluate_all_agents(
+    payload: schemas.AgentEvaluationRequest,
+    db: Session = Depends(get_db)
+) -> schemas.AgentEvaluationResponse:
+    try:
+        # Get source context
+        source_context = payload.source_context
+        if not source_context and payload.use_rag:
+            if rag_retriever.is_ready():
+                source_context = rag_retriever.retrieve_context(payload.question, k=5)
+        
+        # Run all agents
+        relevance_result = relevance_judge.evaluate(
+            question=payload.question,
+            ai_response=payload.ai_response
+        )
+        
+        accuracy_result = accuracy_judge.evaluate(
+            question=payload.question,
+            ai_response=payload.ai_response,
+            reference_answer=payload.reference_answer,
+            source_context=source_context
+        )
+        
+        completeness_result = completeness_judge.evaluate(
+            question=payload.question,
+            ai_response=payload.ai_response
+        )
+        
+        hallucination_result = hallucination_detector.evaluate(
+            question=payload.question,
+            ai_response=payload.ai_response,
+            source_context=source_context or ""
+        )
+        
+        # Prepare scores and reasonings for verdict
+        scores = {
+            "relevance_score": relevance_result.get("relevance_score", 0),
+            "accuracy_score": accuracy_result.get("accuracy_score", 0),
+            "completeness_score": completeness_result.get("completeness_score", 0),
+            "hallucination_score": hallucination_result.get("hallucination_score", 0)
+        }
+        
+        reasonings = {
+            "relevance": relevance_result.get("reasoning", ""),
+            "accuracy": accuracy_result.get("evidence", ""),
+            "completeness": completeness_result.get("reasoning", ""),
+            "hallucination": hallucination_result.get("summary", "")
+        }
+        
+        verdict_result = verdict_agent.evaluate(scores, reasonings)
+        
+        # Store in database
         new_submission = models.EvaluationSubmission(
             question=payload.question,
             ai_response=payload.ai_response,
@@ -434,8 +604,8 @@ async def evaluate_all_agents(
             source_document=source_context,
             source_document_name="RAG_Context_for_Agents",
             mode="agent_evaluation",
-            evaluation_score=accuracy_result.get("accuracy_score", 0),
-            evaluation_feedback=f"Relevance: {relevance_result.get('reasoning', 'N/A')} | Hallucination: {hallucination_result.get('summary', 'N/A')}"
+            evaluation_score=verdict_result.get("overall_score", 0),
+            evaluation_feedback=verdict_result.get("consolidated_reasoning", "")
         )
         
         db.add(new_submission)
@@ -462,6 +632,12 @@ async def evaluate_all_agents(
                 total_claims=accuracy_result["total_claims"],
                 verified_claims=accuracy_result["verified_claims"]
             ),
+            completeness=schemas.CompletenessResponse(
+                completeness_score=completeness_result["completeness_score"],
+                reasoning=completeness_result["reasoning"],
+                covered_aspects=completeness_result["covered_aspects"],
+                missing_aspects=completeness_result["missing_aspects"]
+            ),
             hallucination=schemas.HallucinationResponse(
                 hallucination_detected=hallucination_result["hallucination_detected"],
                 hallucination_score=hallucination_result["hallucination_score"],
@@ -472,6 +648,13 @@ async def evaluate_all_agents(
                 supported_count=hallucination_result["supported_count"],
                 summary=hallucination_result["summary"]
             ),
+            verdict=schemas.VerdictResponse(
+                overall_score=verdict_result["overall_score"],
+                verdict=verdict_result["verdict"],
+                verdict_emoji=verdict_result["verdict_emoji"],
+                dimension_breakdown=verdict_result["dimension_breakdown"],
+                consolidated_reasoning=verdict_result["consolidated_reasoning"]
+            ),
             status="completed"
         )
     except Exception as e:
@@ -481,6 +664,10 @@ async def evaluate_all_agents(
             detail=f"Evaluation failed: {str(e)}"
         )
 
+
+# ==============================================================================
+# MODULE 2: VALIDATION AGENT
+# ==============================================================================
 
 @app.post(
     "/api/agents/validate",
@@ -511,6 +698,10 @@ async def validate_agents(
         )
 
 
+# ==============================================================================
+# AGENT STATUS
+# ==============================================================================
+
 @app.get(
     "/api/agents/status",
     tags=["Agents"]
@@ -522,7 +713,96 @@ async def get_agents_status():
         "relevance_agent": "ready",
         "accuracy_agent": "ready",
         "hallucination_agent": "ready",
+        "completeness_agent": "ready",
+        "verdict_agent": "ready",
         "validation_agent": "ready",
         "rag_available": rag_retriever.is_ready(),
         "llm_available": True
     }
+
+
+# ==============================================================================
+# DASHBOARD STATS ENDPOINT (FOR SIDEBAR)
+# ==============================================================================
+
+@app.get("/api/stats", tags=["Dashboard"])
+async def get_stats(db: Session = Depends(get_db)):
+    """
+    Get statistics for the sidebar and dashboard
+    """
+    try:
+        # Total submissions
+        total = db.query(models.EvaluationSubmission).count()
+        
+        # Pass count (COMPLETED with score >= 0.7)
+        pass_count = db.query(models.EvaluationSubmission).filter(
+            models.EvaluationSubmission.status == models.SubmissionStatus.COMPLETED,
+            models.EvaluationSubmission.evaluation_score >= 0.7
+        ).count()
+        
+        # Fail count (COMPLETED with score < 0.5)
+        fail_count = db.query(models.EvaluationSubmission).filter(
+            models.EvaluationSubmission.status == models.SubmissionStatus.COMPLETED,
+            models.EvaluationSubmission.evaluation_score < 0.5
+        ).count()
+        
+        # Needs Improvement (COMPLETED with score between 0.5 and 0.7)
+        needs_improvement = db.query(models.EvaluationSubmission).filter(
+            models.EvaluationSubmission.status == models.SubmissionStatus.COMPLETED,
+            models.EvaluationSubmission.evaluation_score >= 0.5,
+            models.EvaluationSubmission.evaluation_score < 0.7
+        ).count()
+        
+        # Average score
+        all_scores = db.query(models.EvaluationSubmission.evaluation_score).filter(
+            models.EvaluationSubmission.evaluation_score.isnot(None)
+        ).all()
+        
+        avg_score = 0
+        if all_scores:
+            avg_score = sum(s[0] for s in all_scores) / len(all_scores)
+        
+        # Recent evaluations (last 5)
+        recent = db.query(models.EvaluationSubmission).order_by(
+            models.EvaluationSubmission.created_at.desc()
+        ).limit(5).all()
+        
+        recent_evaluations = []
+        for r in recent:
+            verdict = "PENDING"
+            if r.status == models.SubmissionStatus.COMPLETED:
+                if r.evaluation_score and r.evaluation_score >= 0.7:
+                    verdict = "PASS"
+                elif r.evaluation_score and r.evaluation_score >= 0.5:
+                    verdict = "NEEDS IMPROVEMENT"
+                else:
+                    verdict = "FAIL"
+            elif r.status == models.SubmissionStatus.FAILED:
+                verdict = "FAIL"
+            
+            recent_evaluations.append({
+                "id": r.id,
+                "question": r.question[:50] + ("..." if len(r.question) > 50 else ""),
+                "score": r.evaluation_score or 0,
+                "verdict": verdict,
+                "timestamp": r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else ""
+            })
+        
+        return {
+            "total": total,
+            "pass": pass_count,
+            "needs_improvement": needs_improvement,
+            "fail": fail_count,
+            "avg_score": round(avg_score, 2),
+            "recent": recent_evaluations
+        }
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        return {
+            "total": 0,
+            "pass": 0,
+            "needs_improvement": 0,
+            "fail": 0,
+            "avg_score": 0,
+            "recent": []
+        }

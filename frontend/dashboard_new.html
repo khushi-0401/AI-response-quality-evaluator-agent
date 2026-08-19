@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeriScore AI - Dashboard</title>
+    <style>
+        /* ============================================= */
+        /* RESET & BASE */
+        /* ============================================= */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0A1628;
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        /* ============================================= */
+        /* LAYOUT */
+        /* ============================================= */
+        .app-layout {
+            display: flex;
+            min-height: 100vh;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* ============================================= */
+        /* SIDEBAR NAVIGATION */
+        /* ============================================= */
+        .sidebar {
+            width: 260px;
+            min-width: 260px;
+            background: rgba(255, 255, 255, 0.04);
+            border-right: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 24px 16px;
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            margin-bottom: 20px;
+        }
+
+        .sidebar-brand .icon {
+            font-size: 1.4rem;
+        }
+
+        .sidebar-brand .name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .sidebar-brand .version {
+            font-size: 0.6rem;
+            color: #64748B;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: auto;
+        }
+
+        /* ============================================= */
+        /* NAVIGATION MENU */
+        /* ============================================= */
+        .nav-label {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748B;
+            padding: 8px 14px 6px 14px;
+            margin-top: 4px;
+        }
+
+        .nav-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 8px 0;
+        }
+
+        .nav-item {
+            margin-bottom: 2px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            color: #94A3B8;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+        }
+
+        .nav-link.active {
+            background: rgba(37, 99, 235, 0.15);
+            color: #60A5FA;
+        }
+
+        .nav-link .icon {
+            font-size: 1.1rem;
+            width: 24px;
+            text-align: center;
+        }
+
+        .nav-link .badge {
+            margin-left: auto;
+            font-size: 0.6rem;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 1px 8px;
+            border-radius: 10px;
+            color: #64748B;
+        }
+
+        .nav-link .badge.active-badge {
+            background: rgba(74, 222, 128, 0.15);
+            color: #4ade80;
+        }
+
+        .nav-link .badge.new-badge {
+            background: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
+        }
+
+        /* ============================================= */
+        /* SIDEBAR BOTTOM */
+        /* ============================================= */
+        .sidebar-bottom {
+            margin-top: auto;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar-bottom .user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-radius: 10px;
+        }
+
+        .sidebar-bottom .user .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2563EB, #4F46E5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .sidebar-bottom .user .info .name {
+            font-size: 0.85rem;
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .sidebar-bottom .user .info .role {
+            font-size: 0.65rem;
+            color: #64748B;
+        }
+
+        /* ============================================= */
+        /* MAIN CONTENT */
+        /* ============================================= */
+        .main-content {
+            flex: 1;
+            padding: 24px 32px;
+            min-height: 100vh;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-header h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .page-header p {
+            color: #64748B;
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
+        /* Cards */
+        .card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+
+        .card p {
+            color: #64748B;
+            font-size: 0.85rem;
+        }
+
+        .card .card-sub {
+            color: #64748B;
+            font-size: 0.8rem;
+            margin-bottom: 16px;
+        }
+
+        /* Forms */
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 16px 0;
+        }
+
+        .col {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: #94A3B8;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select {
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            color: #E2E8F0;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            width: 100%;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: #2563EB;
+        }
+
+        input::placeholder {
+            color: #475569;
+        }
+
+        textarea {
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            color: #E2E8F0;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            resize: vertical;
+            width: 100%;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #2563EB;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: #2563EB;
+            background: transparent;
+        }
+
+        .range-value {
+            color: #64748B;
+            font-size: 0.8rem;
+            margin-top: 4px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #2563EB, #4F46E5);
+            color: #fff;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.06);
+            color: #94A3B8;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 10px 24px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #94A3B8;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            accent-color: #2563EB;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .action-row {
+            align-items: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .stat-card .label {
+            font-size: 0.7rem;
+            color: #64748B;
+            margin-top: 4px;
+        }
+
+        .stat-card .number.green { color: #4ade80; }
+        .stat-card .number.red { color: #f87171; }
+        .stat-card .number.yellow { color: #fbbf24; }
+        .stat-card .number.blue { color: #60a5fa; }
+
+        .settings-hint {
+            color: #64748B;
+            font-size: 0.8rem;
+            margin-top: 4px;
+        }
+
+        /* ============================================= */
+        /* RESPONSIVE */
+        /* ============================================= */
+        @media (max-width: 1024px) {
+            .app-layout {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                min-width: unset;
+                height: auto;
+                position: static;
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                flex-direction: row;
+                flex-wrap: wrap;
+                padding: 16px 20px;
+            }
+            .sidebar-brand {
+                width: 100%;
+                margin-bottom: 0;
+            }
+            .nav-menu {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                margin-bottom: 0;
+            }
+            .nav-item {
+                margin-bottom: 0;
+            }
+            .nav-link {
+                padding: 6px 12px;
+                font-size: 0.75rem;
+            }
+            .nav-label {
+                display: none;
+            }
+            .sidebar-bottom {
+                display: none;
+            }
+            .main-content {
+                padding: 16px 20px;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .sidebar {
+                flex-direction: column;
+                padding: 12px 16px;
+            }
+            .nav-menu {
+                flex-direction: column;
+                width: 100%;
+            }
+            .nav-link {
+                padding: 8px 12px;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-layout">
+
+        <!-- ============================================= -->
+        <!-- SIDEBAR NAVIGATION -->
+        <!-- ============================================= -->
+        <aside class="sidebar">
+
+            <!-- Brand -->
+            <div class="sidebar-brand">
+                <span class="icon">✦</span>
+                <span class="name">VeriScore</span>
+                <span class="version">v1.0</span>
+            </div>
+
+            <!-- Navigation Menu -->
+            <div class="nav-label">Main</div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a class="nav-link active" data-page="dashboard">
+                        <span class="icon">📊</span> Dashboard
+                        <span class="badge active-badge">Live</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-page="evaluate">
+                        <span class="icon">📝</span> Evaluate
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-page="batch">
+                        <span class="icon">📊</span> Batch
+                        <span class="badge new-badge">New</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="nav-label">Analytics</div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a class="nav-link" data-page="reports">
+                        <span class="icon">📄</span> Reports
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-page="history">
+                        <span class="icon">📋</span> History
+                        <span class="badge">42</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="nav-label">Settings</div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a class="nav-link" data-page="settings">
+                        <span class="icon">⚙️</span> Settings
+                    </a>
+                </li>
+            </ul>
+
+            <!-- Bottom -->
+            <div class="sidebar-bottom">
+                <div class="user">
+                    <div class="avatar">JD</div>
+                    <div class="info">
+                        <div class="name">John Doe</div>
+                        <div class="role">Administrator</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ============================================= -->
+        <!-- MAIN CONTENT -->
+        <!-- ============================================= -->
+        <main class="main-content">
+
+            <!-- ============================================= -->
+            <!-- PAGE: DASHBOARD -->
+            <!-- ============================================= -->
+            <div id="page-dashboard" class="page active">
+                <div class="page-header">
+                    <h1>📊 Dashboard</h1>
+                    <p>Overview of your evaluation performance</p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="number blue">42</div>
+                        <div class="label">Total</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number green">28</div>
+                        <div class="label">✅ Pass</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number yellow">8</div>
+                        <div class="label">⚠️ Needs Work</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number red">6</div>
+                        <div class="label">❌ Fail</div>
+                    </div>
+                </div>
+
+                <div class="stats-grid" style="margin-top:12px;">
+                    <div class="stat-card"><div class="number" style="color:#667eea;">8.5</div><div class="label">Avg Relevance</div></div>
+                    <div class="stat-card"><div class="number" style="color:#48bb78;">7.8</div><div class="label">Avg Accuracy</div></div>
+                    <div class="stat-card"><div class="number" style="color:#ed8936;">8.2</div><div class="label">Avg Completeness</div></div>
+                    <div class="stat-card"><div class="number" style="color:#fc8181;">2.1</div><div class="label">Avg Hallucination</div></div>
+                </div>
+
+                <div class="card">
+                    <h2>📈 Recent Activity</h2>
+                    <p style="color:#64748B; padding:20px 0;">Recent evaluations will appear here</p>
+                </div>
+            </div>
+
+            <!-- ============================================= -->
+            <!-- PAGE: EVALUATE -->
+            <!-- ============================================= -->
+            <div id="page-evaluate" class="page">
+                <div class="page-header">
+                    <h1>📝 Evaluate</h1>
+                    <p>Enter a question and AI response to evaluate</p>
+                </div>
+
+                <div class="card">
+                    <h2>📝 Evaluate Response</h2>
+                    <p>Enter a question and AI response to evaluate</p>
+
+                    <div class="row">
+                        <div class="col">
+                            <label>❓ Question</label>
+                            <textarea rows="3" placeholder="Enter your question..."></textarea>
+                        </div>
+                        <div class="col">
+                            <label>🤖 AI Response</label>
+                            <textarea rows="5" placeholder="Paste the AI's response..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <label>📖 Reference <span style="color:#64748B; font-weight:400;">(Optional)</span></label>
+                            <textarea rows="2" placeholder="Ground truth answer..."></textarea>
+                        </div>
+                        <div class="col">
+                            <label>📄 Context <span style="color:#64748B; font-weight:400;">(Optional)</span></label>
+                            <textarea rows="2" placeholder="Source context for grounding..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="row action-row">
+                        <div class="col">
+                            <label class="checkbox-label">
+                                <input type="checkbox" checked> 🔍 Use RAG Grounding
+                            </label>
+                        </div>
+                        <div class="col">
+                            <button class="btn-primary">🚀 Evaluate</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================= -->
+            <!-- PAGE: BATCH -->
+            <!-- ============================================= -->
+            <div id="page-batch" class="page">
+                <div class="page-header">
+                    <h1>📊 Batch Evaluation</h1>
+                    <p>Upload a CSV file with multiple evaluations</p>
+                </div>
+
+                <div class="card">
+                    <h2>📊 Upload CSV</h2>
+                    <p>Upload a CSV file with question and AI response columns</p>
+                    <div style="margin-top:16px; padding:30px; border:2px dashed rgba(255,255,255,0.06); border-radius:12px; text-align:center; color:#64748B;">
+                        📁 Drop CSV here or click to browse
+                    </div>
+                    <button class="btn-primary" style="margin-top:16px;">🚀 Process Batch</button>
+                </div>
+            </div>
+
+            <!-- ============================================= -->
+            <!-- PAGE: REPORTS -->
+            <!-- ============================================= -->
+            <div id="page-reports" class="page">
+                <div class="page-header">
+                    <h1>📄 Reports</h1>
+                    <p>View and download evaluation reports</p>
+                </div>
+
+                <div class="card">
+                    <h2>📄 Generated Reports</h2>
+                    <p style="color:#64748B; padding:20px 0;">No reports generated yet</p>
+                    <button class="btn-primary" style="width:auto; padding:8px 24px;">📥 Generate Report</button>
+                </div>
+            </div>
+
+            <!-- ============================================= -->
+            <!-- PAGE: HISTORY -->
+            <!-- ============================================= -->
+            <div id="page-history" class="page">
+                <div class="page-header">
+                    <h1>📋 History</h1>
+                    <p>All previous evaluations</p>
+                </div>
+
+                <div class="card">
+                    <h2>📋 Evaluation History</h2>
+                    <p style="color:#64748B; padding:20px 0;">No evaluations yet</p>
+                </div>
+            </div>
+
+            <!-- ============================================= -->
+            <!-- PAGE: SETTINGS -->
+            <!-- ============================================= -->
+            <div id="page-settings" class="page">
+                <div class="page-header">
+                    <h1>⚙️ Settings</h1>
+                    <p>Configure your evaluation settings</p>
+                </div>
+
+                <!-- API Configuration -->
+                <div class="card">
+                    <h2>🔑 API Configuration</h2>
+                    <div class="row">
+                        <div class="col">
+                            <label>Gemini API Key</label>
+                            <input type="password" value="AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" placeholder="Enter your API key">
+                        </div>
+                        <div class="col" style="justify-content:flex-end;">
+                            <button class="btn-primary" style="width:auto; padding:10px 24px;">Update Key</button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <label>Default Model</label>
+                            <select>
+                                <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash</option>
+                                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <label>Temperature</label>
+                            <input type="range" min="0" max="1" step="0.1" value="0.3" style="margin-top:6px;">
+                            <div class="range-value">Current: 0.3 (Balanced)</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <label>Max Output Tokens</label>
+                            <input type="number" value="1024">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Evaluation Settings -->
+                <div class="card">
+                    <h2>📊 Evaluation Settings</h2>
+                    <div class="row">
+                        <div class="col">
+                            <label>PASS Threshold</label>
+                            <input type="number" value="0.70" step="0.05">
+                        </div>
+                        <div class="col">
+                            <label>FAIL Threshold</label>
+                            <input type="number" value="0.50" step="0.05">
+                        </div>
+                    </div>
+                    <div class="settings-hint">
+                        PASS ≥ 0.70 · NEEDS IMPROVEMENT ≥ 0.50 · FAIL &lt; 0.50
+                    </div>
+                </div>
+
+                <!-- RAG Settings -->
+                <div class="card">
+                    <h2>📚 RAG Settings</h2>
+                    <div class="row">
+                        <div class="col">
+                            <label>Chunk Size</label>
+                            <input type="number" value="500">
+                        </div>
+                        <div class="col">
+                            <label>Chunk Overlap</label>
+                            <input type="number" value="50">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <label>Max RAG Results</label>
+                            <select>
+                                <option value="3">3 (Fast)</option>
+                                <option value="5" selected>5 (Balanced)</option>
+                                <option value="10">10 (Thorough)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reporting -->
+                <div class="card">
+                    <h2>📄 Reporting</h2>
+                    <label class="checkbox-label">
+                        <input type="checkbox" checked> Auto-generate report after batch evaluation
+                    </label>
+                </div>
+
+                <!-- Appearance -->
+                <div class="card">
+                    <h2>🎨 Appearance</h2>
+                    <div class="row">
+                        <div class="col">
+                            <label>Theme</label>
+                            <select>
+                                <option value="dark" selected>Dark</option>
+                                <option value="light">Light</option>
+                                <option value="system">System Default</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save -->
+                <div class="card">
+                    <h2>💾 Save Settings</h2>
+                    <div class="btn-group">
+                        <button class="btn-primary" style="width:auto;">💾 Save All Settings</button>
+                        <button class="btn-secondary">↻ Reset to Default</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SCRIPTS -->
+    <!-- ============================================= -->
+    <script>
+        // =============================================
+        // NAVIGATION
+        // =============================================
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+
+                // Remove active from all nav links
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+
+                // Add active to clicked link
+                this.classList.add('active');
+
+                // Hide all pages
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+
+                // Show the selected page
+                const pageId = this.dataset.page;
+                document.getElementById('page-' + pageId).classList.add('active');
+            });
+        });
+
+        // =============================================
+        // TEMPERATURE SLIDER
+        // =============================================
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', function() {
+                const valueDisplay = this.parentElement.querySelector('.range-value');
+                if (valueDisplay) {
+                    const labels = {
+                        '0.0': 'Very Strict',
+                        '0.1': 'Strict',
+                        '0.2': 'Conservative',
+                        '0.3': 'Balanced',
+                        '0.4': 'Balanced',
+                        '0.5': 'Creative',
+                        '0.6': 'Creative',
+                        '0.7': 'Very Creative',
+                        '0.8': 'Imaginative',
+                        '0.9': 'Imaginative',
+                        '1.0': 'Very Imaginative'
+                    };
+                    const val = parseFloat(this.value).toFixed(1);
+                    const label = labels[val] || 'Balanced';
+                    valueDisplay.textContent = `Current: ${val} (${label})`;
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>

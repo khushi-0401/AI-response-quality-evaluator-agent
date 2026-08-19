@@ -1,8 +1,17 @@
+# ==============================================================================
+# RAG RETRIEVER - Context Retrieval from ChromaDB
+# ==============================================================================
+
 import os
-from typing import List, Dict, Any, Optional
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
 import logging
+from typing import List, Dict, Any, Optional
+
+# =============================================
+# SKIP RAG - Set to True to start server faster
+# =============================================
+SKIP_RAG = True  # ← Set to False to enable RAG
+
+# =============================================
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +22,13 @@ class RAGRetriever:
         self.persist_directory = persist_directory
         self.vector_store = None
         self.embeddings = None
+        
+        # If SKIP_RAG is True, don't load the model
+        if SKIP_RAG:
+            logger.warning("⚠️ RAG DISABLED - Server will start fast")
+            logger.info("✅ To enable RAG, set SKIP_RAG = False in rag_retriever.py")
+            return
+        
         self._initialize()
     
     def _initialize(self):
@@ -21,8 +37,11 @@ class RAGRetriever:
             # Check if the vector store exists
             if not os.path.exists(self.persist_directory):
                 logger.warning(f"Vector store not found at {self.persist_directory}")
-                logger.info("Please run scripts/build_knowledge_base.py first")
+                logger.info("Please run build_knowledge_base.py first")
                 return
+            
+            from langchain_chroma import Chroma
+            from langchain_huggingface import HuggingFaceEmbeddings
             
             # Initialize embeddings
             self.embeddings = HuggingFaceEmbeddings(
@@ -43,25 +62,17 @@ class RAGRetriever:
             self.vector_store = None
     
     def retrieve(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Retrieve relevant documents for a query
-        
-        Args:
-            query: The question/query text
-            k: Number of documents to retrieve
-            
-        Returns:
-            List of retrieved documents with content and metadata
-        """
+        """Retrieve relevant documents for a query"""
         if not self.vector_store:
-            logger.warning("Vector store not available. Please build the knowledge base first.")
+            if SKIP_RAG:
+                logger.warning("RAG is disabled. Set SKIP_RAG=False to enable.")
+            else:
+                logger.warning("Vector store not available.")
             return []
         
         try:
-            # Retrieve similar documents
             results = self.vector_store.similarity_search_with_score(query, k=k)
             
-            # Format results
             retrieved_docs = []
             for doc, score in results:
                 retrieved_docs.append({
@@ -78,17 +89,11 @@ class RAGRetriever:
             return []
     
     def retrieve_context(self, query: str, k: int = 3) -> str:
-        """
-        Retrieve and combine context from relevant documents
-        
-        Returns:
-            Combined context string
-        """
+        """Retrieve and combine context from relevant documents"""
         docs = self.retrieve(query, k)
         if not docs:
             return ""
         
-        # Combine document contents
         context_parts = []
         for i, doc in enumerate(docs, 1):
             context_parts.append(f"[Document {i}]\n{doc['content']}")
@@ -97,4 +102,6 @@ class RAGRetriever:
     
     def is_ready(self) -> bool:
         """Check if the retriever is ready to use"""
+        if SKIP_RAG:
+            return False
         return self.vector_store is not None

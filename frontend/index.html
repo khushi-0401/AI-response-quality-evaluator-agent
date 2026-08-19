@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeriScore AI - Response Evaluator</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* ============================================= */
+        /* LAYOUT */
+        /* ============================================= */
+        .app-layout {
+            display: flex;
+            gap: 24px;
+            align-items: flex-start;
+        }
+
+        /* ============================================= */
+        /* SIDEBAR - Visible */
+        /* ============================================= */
+        .sidebar {
+            width: 260px;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 20px;
+            position: sticky;
+            top: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: block;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .sidebar-brand .icon {
+            font-size: 1.4rem;
+        }
+
+        .sidebar-brand .name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .sidebar-brand .version {
+            font-size: 0.6rem;
+            color: #64748B;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: auto;
+        }
+
+        .sidebar-section {
+            margin-bottom: 18px;
+        }
+
+        .sidebar-section .label {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748B;
+            margin-bottom: 8px;
+        }
+
+        .sidebar-section .value {
+            font-size: 0.85rem;
+            color: #94A3B8;
+            line-height: 1.5;
+        }
+
+        .sidebar-section .value strong {
+            color: #fff;
+        }
+
+        /* Agent Tags */
+        .agent-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .agent-tag {
+            font-size: 0.6rem;
+            padding: 2px 10px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #94A3B8;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .agent-tag.relevance { border-color: rgba(102, 126, 234, 0.3); color: #667eea; }
+        .agent-tag.accuracy { border-color: rgba(72, 187, 120, 0.3); color: #48bb78; }
+        .agent-tag.completeness { border-color: rgba(237, 137, 54, 0.3); color: #ed8936; }
+        .agent-tag.hallucination { border-color: rgba(252, 129, 129, 0.3); color: #fc8181; }
+        .agent-tag.verdict { border-color: rgba(159, 122, 234, 0.3); color: #9f7aea; }
+        .agent-tag.validation { border-color: rgba(246, 173, 85, 0.3); color: #f6ad55; }
+
+        /* Quick Stats */
+        .quick-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .quick-stat {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 8px;
+            padding: 8px 10px;
+            text-align: center;
+        }
+
+        .quick-stat .number {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .quick-stat .q-label {
+            font-size: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748B;
+        }
+
+        .quick-stat.pass .number { color: #4ade80; }
+        .quick-stat.fail .number { color: #f87171; }
+        .quick-stat.improve .number { color: #fbbf24; }
+        .quick-stat.total .number { color: #60a5fa; }
+
+        /* History */
+        .history-item {
+            padding: 6px 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            margin-bottom: 4px;
+            border-left: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .history-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .history-item.pass { border-left-color: #4ade80; }
+        .history-item.fail { border-left-color: #f87171; }
+        .history-item.improve { border-left-color: #fbbf24; }
+
+        .history-item .h-q {
+            font-size: 0.7rem;
+            color: #94A3B8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-item .h-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.55rem;
+            color: #64748B;
+            margin-top: 2px;
+        }
+
+        .history-item .h-score.pass { color: #4ade80; }
+        .history-item .h-score.fail { color: #f87171; }
+        .history-item .h-score.improve { color: #fbbf24; }
+
+        .no-history {
+            font-size: 0.8rem;
+            color: #475569;
+            text-align: center;
+            padding: 12px 0;
+        }
+
+        .sidebar-footer {
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.6rem;
+            color: #475569;
+            text-align: center;
+        }
+
+        /* ============================================= */
+        /* MAIN CONTENT */
+        /* ============================================= */
+        .main-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* ============================================= */
+        /* FILTER BAR */
+        /* ============================================= */
+        .filter-bar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            font-size: 0.7rem;
+            color: #64748B;
+            font-weight: 500;
+        }
+
+        .filter-group select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: #E2E8F0;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+
+        .filter-group select:focus {
+            outline: none;
+            border-color: #2563EB;
+        }
+
+        .filter-btn {
+            background: linear-gradient(135deg, #2563EB, #4F46E5);
+            color: #fff;
+            border: none;
+            padding: 4px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .filter-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .filter-reset-btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: #94A3B8;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 4px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.3s ease;
+        }
+
+        .filter-reset-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #E2E8F0;
+        }
+
+        /* ============================================= */
+        /* DASHBOARD GRID */
+        /* ============================================= */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .dashboard-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .dashboard-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .dashboard-card .label {
+            font-size: 0.7rem;
+            color: #64748B;
+            margin-top: 2px;
+        }
+
+        /* ============================================= */
+        /* AVG SCORES */
+        /* ============================================= */
+        .avg-scores-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .avg-scores-grid .dashboard-card .value {
+            font-size: 1.4rem;
+        }
+
+        /* ============================================= */
+        /* CHARTS */
+        /* ============================================= */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .chart-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .chart-card h3 {
+            font-size: 0.8rem;
+            color: #94A3B8;
+            text-align: center;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .chart-card canvas {
+            max-height: 220px;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* ============================================= */
+        /* RESPONSIVE */
+        /* ============================================= */
+        @media (max-width: 1024px) {
+            .app-layout {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                position: static;
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 16px;
+            }
+            .sidebar-brand {
+                grid-column: 1 / -1;
+            }
+            .sidebar-footer {
+                grid-column: 1 / -1;
+            }
+            .sidebar-section {
+                margin-bottom: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .avg-scores-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+            .sidebar {
+                grid-template-columns: 1fr 1fr;
+            }
+            .filter-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .filter-group {
+                flex-wrap: wrap;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .sidebar {
+                grid-template-columns: 1fr;
+            }
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            .avg-scores-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+
+        <!-- ============================================= -->
+        <!-- HEADER -->
+        <!-- ============================================= -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">✦</div>
+                    <div class="logo-text">
+                        <span class="logo-title">VeriScore</span>
+                        <span class="logo-sub">AI</span>
+                    </div>
+                </div>
+                <p class="header-tagline">AI Response Validation · Hallucination Detection</p>
+            </div>
+        </header>
+
+        <!-- ============================================= -->
+        <!-- STATUS BAR -->
+        <!-- ============================================= -->
+        <div class="status-bar" id="statusBar">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Checking server...</span>
+        </div>
+
+        <!-- ============================================= -->
+        <!-- APP LAYOUT WITH SIDEBAR -->
+        <!-- ============================================= -->
+        <div class="app-layout">
+
+            <!-- ============================================= -->
+            <!-- SIDEBAR - LEFT PANEL -->
+            <!-- ============================================= -->
+            <aside class="sidebar">
+
+                <!-- Brand -->
+                <div class="sidebar-brand">
+                    <span class="icon">✦</span>
+                    <span class="name">VeriScore</span>
+                    <span class="version">v1.0</span>
+                </div>
+
+                <!-- Project -->
+                <div class="sidebar-section">
+                    <div class="label">Project</div>
+                    <div class="value">AI Response Validation with <strong>Hallucination Detection</strong></div>
+                </div>
+
+                <!-- Agents -->
+                <div class="sidebar-section">
+                    <div class="label">Agents</div>
+                    <div class="agent-tags">
+                        <span class="agent-tag relevance">Relevance</span>
+                        <span class="agent-tag accuracy">Accuracy</span>
+                        <span class="agent-tag completeness">Completeness</span>
+                        <span class="agent-tag hallucination">Hallucination</span>
+                        <span class="agent-tag verdict">Verdict</span>
+                        <span class="agent-tag validation">Validation</span>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="sidebar-section">
+                    <div class="label">Stats</div>
+                    <div class="quick-stats">
+                        <div class="quick-stat total">
+                            <div class="number" id="sidebarTotal">0</div>
+                            <div class="q-label">Total</div>
+                        </div>
+                        <div class="quick-stat pass">
+                            <div class="number" id="sidebarPass">0</div>
+                            <div class="q-label">Pass</div>
+                        </div>
+                        <div class="quick-stat improve">
+                            <div class="number" id="sidebarImprove">0</div>
+                            <div class="q-label">Needs Work</div>
+                        </div>
+                        <div class="quick-stat fail">
+                            <div class="number" id="sidebarFail">0</div>
+                            <div class="q-label">Fail</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History -->
+                <div class="sidebar-section">
+                    <div class="label">Recent</div>
+                    <div id="historyList">
+                        <div class="no-history">No evaluations yet</div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="sidebar-footer">
+                    Powered by Google Gemini
+                </div>
+            </aside>
+
+            <!-- ============================================= -->
+            <!-- MAIN CONTENT - RIGHT PANEL -->
+            <!-- ============================================= -->
+            <main class="main-content">
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="single">
+                        <span class="tab-icon">📝</span> Evaluate
+                    </button>
+                    <button class="tab-btn" data-tab="batch">
+                        <span class="tab-icon">📊</span> Batch
+                    </button>
+                    <button class="tab-btn" data-tab="dashboard">
+                        <span class="tab-icon">📈</span> Dashboard
+                    </button>
+                </div>
+
+                <!-- ============================================= -->
+                <!-- TAB 1: EVALUATE -->
+                <!-- ============================================= -->
+                <div id="tab-single" class="tab-content active">
+                    <div class="card glass">
+                        <div class="card-header">
+                            <h2>📝 Evaluate Response</h2>
+                            <p>Enter a question and AI response to evaluate</p>
+                        </div>
+
+                        <div class="row">
+                            <div class="col">
+                                <label>❓ Question</label>
+                                <textarea id="question" rows="3" placeholder="Ask your question here..."></textarea>
+                            </div>
+                            <div class="col">
+                                <label>🤖 AI Response</label>
+                                <textarea id="aiResponse" rows="5" placeholder="Paste the AI's response here..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col">
+                                <label>📖 Reference <span class="optional">(Optional)</span></label>
+                                <textarea id="referenceAnswer" rows="2" placeholder="Ground truth answer..."></textarea>
+                            </div>
+                            <div class="col">
+                                <label>📄 Context <span class="optional">(Optional)</span></label>
+                                <textarea id="sourceContext" rows="2" placeholder="Source context for grounding..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="row action-row">
+                            <div class="col checkbox-col">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="useRag" checked>
+                                    <span>🔍 Use RAG Grounding</span>
+                                </label>
+                            </div>
+                            <div class="col">
+                                <button id="evaluateBtn" class="btn-primary">🚀 Evaluate</button>
+                            </div>
+                        </div>
+
+                        <div id="loading" class="hidden loading-container">
+                            <div class="spinner"></div>
+                            <p>Analyzing response...</p>
+                        </div>
+                    </div>
+
+                    <div id="results" class="card glass hidden">
+                        <div class="card-header">
+                            <h2>📊 Results</h2>
+                        </div>
+                        <div id="scores" class="scores-grid"></div>
+                        <div id="details"></div>
+                    </div>
+                </div>
+
+                <!-- ============================================= -->
+                <!-- TAB 2: BATCH -->
+                <!-- ============================================= -->
+                <div id="tab-batch" class="tab-content">
+                    <div class="card glass">
+                        <div class="card-header">
+                            <h2>📊 Batch Evaluation</h2>
+                            <p>Upload a CSV file with multiple evaluations</p>
+                        </div>
+
+                        <div class="csv-format">
+                            <details>
+                                <summary>📄 CSV Format</summary>
+                                <p><strong>Required:</strong> <code>question</code>, <code>ai_response</code></p>
+                                <p><strong>Optional:</strong> <code>reference_answer</code>, <code>source_context</code></p>
+                                <button onclick="downloadSampleCSV()" style="background:none; border:none; color:#667eea; cursor:pointer; font-size:0.8rem;">📥 Download sample.csv</button>
+                            </details>
+                        </div>
+
+                        <div class="upload-zone" id="uploadZone">
+                            <span class="upload-icon">📁</span>
+                            <p>Drop CSV here or click to browse</p>
+                            <input type="file" id="csvFile" accept=".csv">
+                        </div>
+
+                        <div id="batchPreview"></div>
+
+                        <button id="processBatchBtn" class="btn-primary">🚀 Process Batch</button>
+
+                        <div id="batchLoading" class="hidden loading-container">
+                            <div class="spinner"></div>
+                            <p>Processing...</p>
+                        </div>
+
+                        <div id="batchResults" class="hidden">
+                            <h3>📊 Results</h3>
+                            <div id="batchSummary" class="summary-grid"></div>
+                            <div id="batchTable"></div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+                                <button id="downloadCsvBtn" class="btn-secondary">📥 CSV</button>
+                                <button id="generateReportBtn" class="btn-secondary" style="background:linear-gradient(135deg, #2563EB, #4F46E5); color:white;">📄 PDF Report</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================= -->
+                <!-- TAB 3: DASHBOARD -->
+                <!-- ============================================= -->
+                <div id="tab-dashboard" class="tab-content">
+                    <div class="card glass">
+                        <div class="card-header">
+                            <h2>📈 Dashboard</h2>
+                            <p>Overview of evaluation performance</p>
+                        </div>
+
+                        <!-- Filters -->
+                        <div class="filter-bar">
+                            <div class="filter-group">
+                                <label>📅</label>
+                                <select id="filterDate">
+                                    <option value="all">All Dates</option>
+                                    <option value="today">Today</option>
+                                    <option value="week">This Week</option>
+                                    <option value="month">This Month</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>🤖</label>
+                                <select id="filterModel">
+                                    <option value="all">All Models</option>
+                                    <option value="gemini">Gemini</option>
+                                    <option value="gpt4">GPT-4</option>
+                                    <option value="claude">Claude</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>📊</label>
+                                <select id="filterDataset">
+                                    <option value="all">All Datasets</option>
+                                    <option value="squad">SQuAD</option>
+                                    <option value="truthfulqa">TruthfulQA</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>📝</label>
+                                <select id="filterMode">
+                                    <option value="all">All Modes</option>
+                                    <option value="single">Single</option>
+                                    <option value="batch">Batch</option>
+                                </select>
+                            </div>
+                            <button class="filter-btn" id="applyFiltersBtn">Apply</button>
+                            <button class="filter-reset-btn" id="resetFiltersBtn">Reset</button>
+                        </div>
+
+                        <!-- Stats -->
+                        <div class="dashboard-grid" id="dashboardStats">
+                            <div class="dashboard-card">
+                                <div class="value" id="totalEvals">0</div>
+                                <div class="label">Total</div>
+                            </div>
+                            <div class="dashboard-card" style="border-color:rgba(74,222,128,0.2);">
+                                <div class="value" id="passCount" style="color:#4ade80;">0</div>
+                                <div class="label">✅ Pass</div>
+                            </div>
+                            <div class="dashboard-card" style="border-color:rgba(251,191,36,0.2);">
+                                <div class="value" id="needsImprovementCount" style="color:#fbbf24;">0</div>
+                                <div class="label">⚠️ Needs Work</div>
+                            </div>
+                            <div class="dashboard-card" style="border-color:rgba(248,113,113,0.2);">
+                                <div class="value" id="failCount" style="color:#f87171;">0</div>
+                                <div class="label">❌ Fail</div>
+                            </div>
+                        </div>
+
+                        <!-- Avg Scores -->
+                        <div class="avg-scores-grid" id="avgScores">
+                            <div class="dashboard-card"><div class="value" id="avgRelevance" style="color:#667eea;">0.00</div><div class="label">Relevance</div></div>
+                            <div class="dashboard-card"><div class="value" id="avgAccuracy" style="color:#48bb78;">0.00</div><div class="label">Accuracy</div></div>
+                            <div class="dashboard-card"><div class="value" id="avgCompleteness" style="color:#ed8936;">0.00</div><div class="label">Completeness</div></div>
+                            <div class="dashboard-card"><div class="value" id="avgHallucination" style="color:#fc8181;">0.00</div><div class="label">Hallucination</div></div>
+                            <div class="dashboard-card"><div class="value" id="avgOverall" style="color:#9f7aea;">0.00</div><div class="label">Overall</div></div>
+                        </div>
+
+                        <!-- Charts -->
+                        <div class="chart-grid">
+                            <div class="chart-card">
+                                <h3>Verdict Distribution</h3>
+                                <canvas id="verdictChart"></canvas>
+                            </div>
+                            <div class="chart-card">
+                                <h3>Hallucination Frequency</h3>
+                                <canvas id="hallucinationChart"></canvas>
+                            </div>
+                            <div class="chart-card full-width">
+                                <h3>Quality Trends</h3>
+                                <canvas id="trendChart" style="max-height:180px;"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>VeriScore AI · Built with ❤️ · Google Gemini</p>
+        </footer>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SCRIPTS -->
+    <!-- ============================================= -->
+    <script>
+        function downloadSampleCSV() {
+            const csv = `question,ai_response,reference_answer,source_context
+"What is the capital of France?","Paris is the capital of France.","The capital of France is Paris.",""
+"What is machine learning?","Machine learning is a subset of AI.","ML is a field of AI.",""
+"What is the tallest mountain?","Mount Everest is the tallest mountain.","Everest is the highest mountain.",""
+"Explain quantum computing.","Quantum computing uses qubits.","Quantum computing uses quantum mechanics.",""
+"What is artificial intelligence?","AI is artificial intelligence.","AI stands for Artificial Intelligence.",""`;
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'sample_evaluations.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+
+    <script src="js/api.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/report.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/dashboard.js"></script>
+
+</body>
+</html>
